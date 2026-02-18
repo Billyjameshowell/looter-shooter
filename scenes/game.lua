@@ -366,6 +366,19 @@ function GameScene:enemyKilled(enemy, index)
         self:dropLoot(enemy.x + enemy.w/2, enemy.y + enemy.h/2, enemy.boss)
     end
 
+    -- Award currency based on enemy type
+    local currencyGain = 0
+    if enemy.boss then
+        currencyGain = 100 + (self.wave * 10)  -- Boss gives lots of currency
+    elseif enemy.type == "ranged" then
+        currencyGain = 25 + (self.wave * 2)    -- Ranged enemies worth more
+    else
+        currencyGain = 10 + (self.wave * 1)    -- Melee enemies give standard currency
+    end
+    
+    Game.currency = (Game.currency or 0) + currencyGain
+    print("Gold earned: +" .. currencyGain .. " (Total: " .. Game.currency .. ")")
+
     -- XP
     local xpGain = enemy.boss and 100 or 20
     self.player.xp = self.player.xp + xpGain
