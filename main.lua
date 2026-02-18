@@ -18,6 +18,8 @@ function love.load()
     Game = {
         world = bump.newWorld(64),
         collectedGuns = {},  -- All guns collected across runs
+        inventory = {},      -- Player inventory (max 6 guns)
+        equippedSlot = 1,    -- Currently equipped slot (1-6)
         player = nil,        -- Current player state
         wave = 1             -- Current wave
     }
@@ -32,6 +34,7 @@ function love.load()
     
     print("LooterShooter loaded!")
     print("Controls: WASD to move, E to interact, Click to shoot")
+    print("Inventory: 1-6 to switch guns, Q/E to cycle")
 end
 
 function love.update(dt)

@@ -25,7 +25,6 @@ function HQScene:load()
         health = 100,
         maxHealth = 100,
         angle = 0,
-        weapon = nil,
         grenades = 3,
         xp = 0,
         level = 1
@@ -40,6 +39,12 @@ function HQScene:load()
     -- Initialize collected guns if not set
     if not Game.collectedGuns then
         Game.collectedGuns = {}
+    end
+
+    -- Initialize inventory if not set
+    if not Game.inventory then
+        Game.inventory = {}
+        Game.equippedSlot = 1
     end
 
     -- Define interactive zones
@@ -158,15 +163,28 @@ function HQScene:draw()
     love.graphics.setFont(love.graphics.newFont(12))
     love.graphics.print("Currency: " .. Game.currency, 10, 75)
     love.graphics.print("Loot Collected: " .. #Game.collectedGuns, 10, 95)
+    love.graphics.print("Inventory: " .. #Game.inventory .. "/6", 10, 115)
 
     -- Draw collected guns preview
     if #Game.collectedGuns > 0 then
-        love.graphics.print("Recent:", 10, 115)
+        love.graphics.print("Recent:", 10, 135)
         for i = 1, math.min(5, #Game.collectedGuns) do
             local gun = Game.collectedGuns[#Game.collectedGuns - i + 1]
             local rarityColor = Colors[gun.rarity] or Colors.common
             love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3])
-            love.graphics.print("  " .. gun.name, 10, 130 + i * 15)
+            love.graphics.print("  " .. gun.name, 10, 150 + i * 15)
+        end
+    end
+
+    -- Draw inventory preview
+    if #Game.inventory > 0 then
+        love.graphics.setColor(255, 255, 255)
+        love.graphics.print("Equipped: ", 400, 75)
+        local currentGun = Game.inventory[Game.equippedSlot]
+        if currentGun then
+            local rarityColor = Colors[currentGun.rarity] or Colors.common
+            love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3])
+            love.graphics.print(currentGun.name .. " (Slot " .. Game.equippedSlot .. ")", 400, 95)
         end
     end
 

@@ -31,6 +31,12 @@ function GameScene:load()
     self.grenades = {}
     self.bossSpawned = false
 
+    -- Initialize inventory with default pistol if empty
+    if #Game.inventory == 0 then
+        Game.inventory = {self:generateStartingGun()}
+        Game.equippedSlot = 1
+    end
+
     -- Create player (same as HQ but positioned for game)
     self.player = {
         x = 400,
@@ -41,7 +47,6 @@ function GameScene:load()
         health = Game.player and Game.player.health or 100,
         maxHealth = 100,
         angle = 0,
-        weapon = self:generateStartingGun(),
         grenades = 3,
         xp = 0,
         level = 1,
@@ -426,14 +431,20 @@ function GameScene:updateLootDrops(dt)
         )
 
         if dist < 50 then
-            -- Pick up
+            -- Add to collected guns (persistence)
             table.insert(Game.collectedGuns, drop.gun)
             print("Acquired: " .. drop.gun.name .. " (" .. drop.gun.rarity .. ")")
 
-            -- Equip if better than current
-            if not self.player.weapon or drop.gun.damage > self.player.weapon.damage then
-                self.player.weapon = drop.gun
-                print("Equipped: " .. drop.gun.name)
+            -- Add to inventory or swap
+            if #Game.inventory < 6 then
+                table.insert(Game.inventory, drop.gun)
+                Game.equippedSlot = #Game.inventory
+                print("Added to inventory (slot " .. Game.equippedSlot .. ")")
+            else
+                -- Inventory full, auto-swap to new gun
+                Game.inventory[6] = drop.gun
+                Game.equippedSlot = 6
+                print("Inventory full! Swapped with new gun (slot 6)")
             end
 
             table.remove(self.lootDrops, i)
@@ -590,14 +601,32 @@ function GameScene:draw()
     love.graphics.setFont(love.graphics.newFont(12))
     love.graphics.print("HP: " .. math.floor(self.player.health) .. "/" .. self.player.maxHealth, 15, 96)
 
-    -- Weapon info
-    if self.player.weapon then
-        love.graphics.print("Weapon: " .. self.player.weapon.name, 10, 120)
-        love.graphics.print("Damage: " .. math.floor(self.player.weapon.damage), 10, 140)
-        love.graphics.print("Ammo: " .. self.player.weapon.ammo .. "/" .. self.player.weapon.magSize, 10, 160)
+    -- Weapon info (from inventory)
+    local currentGun = Game.inventory[Game.equippedSlot]
+    if currentGun then
+        love.graphics.print("Weapon: " .. currentGun.name, 10, 120)
+        love.graphics.print("Damage: " .. math.floor(currentGun.damage), 10, 140)
+        love.graphics.print("Ammo: " .. currentGun.ammo .. "/" .. currentGun.magSize, 10, 160)
+    end
+
+    -- Inventory display
+    love.graphics.print("Inventory: " .. #Game.inventory .. "/6", 650, 50)
+    for slot = 1, 6 do
+        local gun = Game.inventory[slot]
+        if slot == Game.equippedSlot then
+            love.graphics.setColor(255, 255, 0)
+        elseif gun then
+            love.graphics.setColor(200, 200, 200)
+        else
+            love.graphics.setColor(100, 100, 100)
+        end
+        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.print(slot .. ": " .. (gun and gun.name or "Empty"), 650, 65 + slot * 12)
     end
 
     -- Grenades
+    love.graphics.setColor(255, 255, 255)
+    love.graphics.setFont(love.graphics.newFont(12))
     love.graphics.print("Grenades: " .. self.player.grenades, 10, 180)
 
     -- XP bar
@@ -611,7 +640,19 @@ function GameScene:draw()
 end
 
 function GameScene:keypressed(key)
-    if key == "r" then
+    -- Gun swapping with number keys 1-6
+    if key == "1" then Game.equippedSlot = 1
+    elseif key == "2" then Game.equippedSlot = 2
+    elseif key == "3" then Game.equippedSlot = 3
+    elseif key == "4" then Game.equippedSlot = 4
+    elseif key == "5" then Game.equippedSlot = 5
+    elseif key == "6" then Game.equippedSlot = 6
+    -- Cycle guns with Q/E
+    elseif key == "q" or key == "Q" then
+        Game.equippedSlot = Game.equippedSlot > 1 and Game.equippedSlot - 1 or 6
+    elseif key == "e" or key == "E" then
+        Game.equippedSlot = Game.equippedSlot < 6 and Game.equippedSlot + 1 or 1
+    elseif key == "r" then
         self:throwGrenade()
     end
 
@@ -623,19 +664,20 @@ end
 
 function GameScene:mousepressed(x, y, button)
     if button == 1 then
-        -- Shoot
-        if self.player.weapon and self.player.weapon.ammo > 0 then
-            self.player.weapon.ammo = self.player.weapon.ammo - 1
+        -- Shoot using equipped gun from inventory
+        local currentGun = Game.inventory[Game.equippedSlot]
+        if currentGun and currentGun.ammo > 0 then
+            currentGun.ammo = currentGun.ammo - 1
 
             local cx, cy = self.player.x + self.player.w/2, self.player.y + self.player.h/2
-            local angle = self.player.angle + (math.random() - 0.5) * self.player.weapon.spread
+            local angle = self.player.angle + (math.random() - 0.5) * currentGun.spread
 
             local proj = {
                 x = cx,
                 y = cy,
                 vx = math.cos(angle) * 500,
                 vy = math.sin(angle) * 500,
-                damage = self.player.weapon.damage,
+                damage = currentGun.damage,
                 color = {255, 255, 100},
                 isEnemy = false
             }
