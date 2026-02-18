@@ -1,11 +1,25 @@
-
 # Love2D
 *.love
+*.exe
+*.dll
+*.so
+*.dylib
 
-# macOS
-__MACOSX/
+# OS
 .DS_Store
+Thumbs.db
 
-# General
-*.swp
-*.bak
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Logs
+*.log
+
+# Build
+*.o
+*.a
+
+# Project specific
+save.dat
