@@ -209,4 +209,48 @@ bump.rect = {
   detectCollision               = rect_detectCollision
 }
 
+------------------------------------------
+-- World (minimal API used by this project)
+------------------------------------------
+
+local World = {}
+World.__index = World
+
+function World:add(item, x, y, w, h)
+  assertIsRect(x, y, w, h)
+  self.rects[item] = {x = x, y = y, w = w, h = h}
+  return item
+end
+
+function World:remove(item)
+  self.rects[item] = nil
+  return item
+end
+
+function World:update(item, x, y, w, h)
+  assertIsRect(x, y, w, h)
+  if not self.rects[item] then
+    return self:add(item, x, y, w, h)
+  end
+
+  local rect = self.rects[item]
+  rect.x, rect.y, rect.w, rect.h = x, y, w, h
+  return item
+end
+
+function World:getRect(item)
+  local rect = self.rects[item]
+  if not rect then return nil end
+  return rect.x, rect.y, rect.w, rect.h
+end
+
+function bump.newWorld(cellSize)
+  return setmetatable({
+    cellSize = cellSize or 64,
+    rects = {}
+  }, World)
+end
+
+bump.World = World
+
 return bump
