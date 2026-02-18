@@ -1,0 +1,11 @@
+
+# Love2D
+*.love
+
+# macOS
+__MACOSX/
+.DS_Store
+
+# General
+*.swp
+*.bak
