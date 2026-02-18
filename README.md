@@ -18,9 +18,30 @@ A Love2D looter-shooter game with wave-based enemy spawning, procedural loot gen
 - **Death Loop**: Die and return to HQ with all collected loot
 - **Placeholder Art**: Bright, cartoon-style colored rectangles and circles
 
-### Joe's Bar (NEW!)
+### Store System (NEW!)
+The shop in HQ provides a way to spend currency earned from defeating enemies:
+- **Currency System**: Gain gold from kills (melee: 10+wave, ranged: 25+2*wave, boss: 100+10*wave)
+- **Gun Shop**: Buy pre-built weapons to add to your collection
+  - Basic Pistol: 50 currency (common)
+  - Combat Rifle: 150 currency (rare)
+  - Plasma Rifle: 400 currency (epic)
+  - Legendary Cannon: 800 currency (legendary)
+  - Grail Blaster: 1500 currency (grail)
+- **Upgrades**: Purchase stat boosts that apply to your character
+  - Health Boost: +25 Max HP (75 currency)
+  - Damage Upgrade: +10% Damage (100 currency)
+  - Fire Rate Boost: 10% Faster Fire (100 currency)
+  - Ammo Efficiency: +20% Magazine Size (150 currency)
+  - Accuracy Upgrade: -15% Spread (80 currency)
+- **Controls**: 
+  - Press E near the store counter to open
+  - ↑/↓ Arrow keys to navigate
+  - ENTER to purchase selected item
+  - ESC to close or go back to main menu
+
+### Joe's Bar
 Located in the HQ, Joe's Bar offers:
-- **Buy Drinks**: Restore HP (free for now, currency in future)
+- **Buy Drinks**: Restore HP (free for now)
 - **Chat**: Get random dialogue from Joe
 - **Menu Options**:
   - Health Potion (+25 HP)
@@ -51,11 +72,11 @@ love .
 
 ### In HQ
 - **WASD** - Move around
-- **Click "TO MISSION"** - Start a run
-- **E (near Joe)** - Open dialogue menu
-- **↑/↓ or K/J** - Navigate dialogue options
-- **ENTER** - Select option
-- **ESC** - Close dialogue
+- **E** - Interact with nearby zone (store, bar, vault, mission)
+- **Store/Menu Navigation**:
+  - **↑/↓ Arrow Keys** - Navigate menu items
+  - **ENTER** - Select/Buy item
+  - **ESC** - Go back or close menu
 
 ### In Mission
 - **WASD** - Move around
@@ -107,11 +128,16 @@ looter-shooter/
 - Death → HQ loop with loot persistence
 - HQ scene with locations and player spawn
 - Simple AI for enemy movement toward player
-- **Joe's Bar** (NEW!):
-  - Interactive bartender NPC with dialogue system
+- **Joe's Bar**: Interactive bartender NPC with dialogue system
   - HP restoration menu (drinks restore health)
   - Random dialogue lines for Joe
   - Navigation and selection UI for dialogue
+- **Store System** (NEW!):
+  - Currency earning from enemy kills (scales by wave and enemy type)
+  - Shop inventory with guns and upgrades
+  - Interactive menu to browse and purchase items
+  - Gun Vault to manage collected weapons
+  - Upgrade system for permanent stat boosts
 
 ### 🚧 Future Enhancements
 - Sprite animations (anim8 ready)
@@ -119,10 +145,11 @@ looter-shooter/
 - Grenade mechanics
 - Special abilities
 - Boss encounters
-- Weapon upgrade system
+- Weapon equipping system (buy and switch guns)
 - Sound and music
 - Particle effects
 - More enemy types
+- Shop persistence (remember purchases across runs)
 
 ## License
 
