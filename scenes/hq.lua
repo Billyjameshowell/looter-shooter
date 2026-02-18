@@ -1,8 +1,14 @@
 -- HQ Scene - The player's home base
+local Dialogue = require("utils.dialogue")
+
 HQScene = {
     player = nil,
     zones = {},
-    npcs = {}
+    npcs = {},
+    -- Dialogue state
+    dialogueOpen = false,
+    currentQuote = "",
+    selectedOption = nil
 }
 
 function HQScene:load()
@@ -35,6 +41,11 @@ function HQScene:load()
     self.npcs = {
         joe = {x = 660, y = 180, w = 30, h = 40, name = "Joe the Bartender", dialog = "Welcome back! The bar's always open. Need something to drink?"}
     }
+
+    -- Dialogue state
+    self.dialogueOpen = false
+    self.currentQuote = Dialogue.getRandomQuote()
+    self.selectedOption = nil
 end
 
 function HQScene:update(dt)
@@ -135,9 +146,123 @@ function HQScene:draw()
             love.graphics.print("  " .. gun.name, 10, 110 + i * 15)
         end
     end
+
+    -- Draw Joe's dialogue box when open
+    if self.dialogueOpen then
+        self:drawDialogueBox()
+    end
+end
+
+-- Draw Joe's dialogue box UI
+function HQScene:drawDialogueBox()
+    local cfg = Dialogue.getBoxConfig()
+    local x, y = cfg.x, cfg.y
+    local w, h = cfg.width, cfg.height
+    local padding = cfg.padding
+
+    -- Dark semi-transparent overlay background
+    love.graphics.setColor(0, 0, 0, 150)
+    love.graphics.rectangle("fill", 0, 0, 800, 600)
+
+    -- Dialogue box background
+    love.graphics.setColor(30, 20, 15)  -- Dark brown wood color
+    love.graphics.rectangle("fill", x, y, w, h)
+
+    -- Box border
+    love.graphics.setColor(180, 140, 80)  -- Gold/brown border
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", x, y, w, h)
+
+    -- Joe's name
+    love.graphics.setColor(255, 200, 100)
+    love.graphics.setFont(love.graphics.newFont(14))
+    love.graphics.printf("Joe the Bartender", x + padding, y + padding, w - padding * 2, "center")
+
+    -- Joe's quote
+    love.graphics.setColor(255, 255, 220)  -- Light cream text
+    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.printf("\"" .. self.currentQuote .. "\"", x + padding, y + padding + 30, w - padding * 2, "center")
+
+    -- Draw menu options
+    local menu = Dialogue.getDrinkMenu()
+    local buttonY = y + h - padding - (#menu * (cfg.buttonHeight + cfg.buttonGap))
+    local buttonX = x + padding
+    local buttonW = w - padding * 2
+
+    for i, item in ipairs(menu) do
+        local btnY = buttonY + (i - 1) * (cfg.buttonHeight + cfg.buttonGap)
+
+        -- Highlight selected option
+        if i == self.selectedOption then
+            love.graphics.setColor(100, 60, 20)  -- Dark orange highlight
+            love.graphics.rectangle("fill", buttonX, btnY, buttonW, cfg.buttonHeight)
+
+            -- Selection indicator
+            love.graphics.setColor(255, 200, 50)
+            love.graphics.polygon("fill",
+                buttonX + 5, btnY + cfg.buttonHeight / 2 - 3,
+                buttonX + 10, btnY + cfg.buttonHeight / 2,
+                buttonX + 5, btnY + cfg.buttonHeight / 2 + 3
+            )
+        else
+            love.graphics.setColor(50, 40, 30)  -- Dark button
+            love.graphics.rectangle("fill", buttonX, btnY, buttonW, cfg.buttonHeight)
+        end
+
+        -- Button border
+        love.graphics.setColor(100, 80, 50)
+        love.graphics.setLineWidth(1)
+        love.graphics.rectangle("line", buttonX, btnY, buttonW, cfg.buttonHeight)
+
+        -- Button text
+        love.graphics.setColor(255, 255, 255)
+        love.graphics.setFont(love.graphics.newFont(11))
+
+        local textX = buttonX + 15
+        love.graphics.printf(item.name, textX, btnY + 8, 120, "left")
+
+        -- HP restore info for drinks
+        if item.hpRestore > 0 then
+            love.graphics.setColor(150, 255, 150)
+            love.graphics.printf("+" .. item.hpRestore .. " HP", textX + 130, btnY + 8, 80, "left")
+        end
+    end
+
+    -- Instructions
+    love.graphics.setColor(180, 180, 180)
+    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.printf("↑↓ Navigate | ENTER Select | ESC Close", x, y + h - 12, w, "center")
 end
 
 function HQScene:keypressed(key)
+    -- Handle dialogue menu navigation with arrow keys
+    if self.dialogueOpen then
+        if key == "down" or key == "j" then
+            -- Move selection down (cycle through options)
+            local menu = Dialogue.getDrinkMenu()
+            if not self.selectedOption or self.selectedOption < #menu then
+                self.selectedOption = (self.selectedOption or 0) + 1
+            end
+        elseif key == "up" or key == "k" then
+            -- Move selection up
+            local menu = Dialogue.getDrinkMenu()
+            if self.selectedOption and self.selectedOption > 1 then
+                self.selectedOption = self.selectedOption - 1
+            end
+        elseif key == "return" or key == "space" then
+            -- Select option
+            if self.selectedOption then
+                self:handleMenuSelection(self.selectedOption)
+            end
+        elseif key == "escape" or key == "q" then
+            -- Close dialogue
+            self.dialogueOpen = false
+            self.selectedOption = nil
+        end
+        return
+    end
+
+    -- Normal interaction when dialogue is closed
     if key == "e" then
         -- Check for nearby interactables
         local px, py = self.player.x + self.player.w/2, self.player.y + self.player.h/2
@@ -150,7 +275,11 @@ function HQScene:keypressed(key)
                     -- Start mission
                     SceneManager.switch(GameScene)
                 elseif name == "bar" then
-                    print("Joe says: " .. self.npcs.joe.dialog)
+                    -- Open Joe's dialogue
+                    self.dialogueOpen = true
+                    self.currentQuote = Dialogue.getRandomQuote()
+                    self.selectedOption = 1  -- Default to first option
+                    print("Opened Joe's dialogue menu")
                 elseif name == "store" then
                     print("Store: Come back after a mission to buy upgrades!")
                 elseif name == "vault" then
@@ -158,6 +287,34 @@ function HQScene:keypressed(key)
                 end
             end
         end
+    end
+end
+
+-- Handle menu selection in Joe's dialogue
+function HQScene:handleMenuSelection(option)
+    local menu = Dialogue.getDrinkMenu()
+    local selection = menu[option]
+
+    if selection.name == "Leave" then
+        -- Close dialogue
+        self.dialogueOpen = false
+        self.selectedOption = nil
+        print("Closed Joe's dialogue")
+    elseif selection.hpRestore > 0 then
+        -- Buy drink - restore HP
+        local hpToRestore = selection.hpRestore
+        local oldHealth = self.player.health
+        self.player.health = math.min(self.player.maxHealth, self.player.health + hpToRestore)
+        local actualRestore = self.player.health - oldHealth
+        print("Bought " .. selection.name .. ": Restored " .. actualRestore .. " HP (now " .. math.floor(self.player.health) .. "/" .. self.player.maxHealth .. ")")
+        -- Refresh quote after purchase
+        self.currentQuote = Dialogue.getRandomQuote()
+        self.selectedOption = 1
+    elseif selection.name == "Just Chatting" then
+        -- Just get new dialogue
+        self.currentQuote = Dialogue.getRandomQuote()
+        print("Joe: " .. self.currentQuote)
+        self.selectedOption = 1
     end
 end
 

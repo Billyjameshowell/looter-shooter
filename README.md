@@ -7,15 +7,27 @@ A Love2D looter-shooter game with wave-based enemy spawning, procedural loot gen
 - **HQ Base**: Central hub with store, bar, gun vault, and mission exit
 - **Player Controller**: WASD movement, mouse aiming, click-to-shoot mechanics
 - **Wave System**: Endless waves of enemies with increasing difficulty
-- **Enemy Types**: 
+- **Enemy Types**:
   - Melee (red) - chase the player
   - Ranged (purple) - shoot projectiles
 - **Loot System**:
   - 5 rarity tiers: Common → Rare → Epic → Legendary → Grail
   - Procedurally generated gun stats (damage, fire rate, mag size, spread)
   - Color-coded loot chests that auto-pickup when near player
+- **Joe's Bar**: Interactive bartender NPC with dialogue and HP restoration
 - **Death Loop**: Die and return to HQ with all collected loot
 - **Placeholder Art**: Bright, cartoon-style colored rectangles and circles
+
+### Joe's Bar (NEW!)
+Located in the HQ, Joe's Bar offers:
+- **Buy Drinks**: Restore HP (free for now, currency in future)
+- **Chat**: Get random dialogue from Joe
+- **Menu Options**:
+  - Health Potion (+25 HP)
+  - Big Brew (+50 HP)
+  - Just Chatting (new random dialogue)
+  - Leave (close dialogue)
+- **Controls**: Press E near the bar to open, use arrow keys to navigate
 
 ## How to Run
 
@@ -40,6 +52,10 @@ love .
 ### In HQ
 - **WASD** - Move around
 - **Click "TO MISSION"** - Start a run
+- **E (near Joe)** - Open dialogue menu
+- **↑/↓ or K/J** - Navigate dialogue options
+- **ENTER** - Select option
+- **ESC** - Close dialogue
 
 ### In Mission
 - **WASD** - Move around
@@ -69,6 +85,11 @@ looter-shooter/
 ├── lib/
 │   ├── anim8.lua        # Animation library
 │   └── bump.lua         # Collision detection library
+├── scenes/
+│   ├── hq.lua           # HQ base scene (includes Joe's Bar)
+│   └── game.lua         # Main gameplay scene
+├── utils/
+│   └── dialogue.lua     # Joe's dialogue system
 ├── README.md            # This file
 └── .gitignore           # Git ignore patterns
 ```
@@ -86,6 +107,11 @@ looter-shooter/
 - Death → HQ loop with loot persistence
 - HQ scene with locations and player spawn
 - Simple AI for enemy movement toward player
+- **Joe's Bar** (NEW!):
+  - Interactive bartender NPC with dialogue system
+  - HP restoration menu (drinks restore health)
+  - Random dialogue lines for Joe
+  - Navigation and selection UI for dialogue
 
 ### 🚧 Future Enhancements
 - Sprite animations (anim8 ready)
