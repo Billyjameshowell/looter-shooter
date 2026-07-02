@@ -1,54 +1,57 @@
 -- LooterShooter: A Love2D Looter-Shooter Game
 -- By Botthew
 
+local Save = require("utils.save")
+
 function love.load()
-    -- Window setup
-    love.window.setTitle("LooterShooter")
-    love.window.setMode(800, 600)
-    
-    -- Load libraries
-    bump = require("lib.bump")
-    SceneManager = require("lib.scene_manager")
-    require("lib.math_utils")
+  love.window.setTitle("LooterShooter")
+  love.window.setMode(800, 600)
 
-    -- Load constants
-    Colors = require("config.constants")
+  bump = require("lib.bump")
+  SceneManager = require("lib.scene_manager")
+  require("lib.math_utils")
 
-    -- Global game state
-    Game = {
-        world = bump.newWorld(64),
-        collectedGuns = {},
-        player = nil,
-        equippedWeapon = nil,
-        playerUpgrades = {},
-        currency = 0,
-        wave = 1
-    }
-    
-    -- Load scenes (order matters - utils first, then scenes)
-    require("scenes.hq")
-    require("scenes.game")
-    require("scenes.vault")
-    
-    -- Initialize HQ scene
-    SceneManager.switch(HQScene)
-    
-    print("LooterShooter loaded!")
-    print("Controls: WASD to move, E to interact, Click to shoot")
+  Colors = require("config.constants")
+
+  Game = {
+    world = bump.newWorld(64),
+    collectedGuns = {},
+    player = nil,
+    equippedWeapon = nil,
+    playerUpgrades = {},
+    currency = 0,
+    wave = 1,
+    bestWave = 1
+  }
+
+  Save.load()
+
+  require("scenes.hq")
+  require("scenes.game")
+  require("scenes.vault")
+
+  SceneManager.switch(HQScene)
+
+  print("LooterShooter loaded!")
+  print("Controls: WASD move | E interact | Click shoot | R reload | G grenade")
 end
 
 function love.update(dt)
-    SceneManager.update(dt)
+  SceneManager.update(dt)
 end
 
 function love.draw()
-    SceneManager.draw()
+  SceneManager.draw()
 end
 
 function love.keypressed(key)
-    SceneManager.keypressed(key)
+  SceneManager.keypressed(key)
 end
 
 function love.mousepressed(x, y, button)
-    SceneManager.mousepressed(x, y, button)
+  SceneManager.mousepressed(x, y, button)
+end
+
+function love.quit()
+  Save.save()
 end

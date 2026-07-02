@@ -1,4 +1,7 @@
 -- Gun Vault Scene - Browse and equip collected guns
+local Save = require("utils.save")
+local Fonts = require("utils.fonts")
+
 VaultScene = {
     player = nil,
     guns = {},
@@ -59,16 +62,16 @@ function VaultScene:draw()
     
     -- Draw title
     love.graphics.setColor(255, 255, 255)
-    love.graphics.setFont(love.graphics.newFont(20))
+    love.graphics.setFont(Fonts.get(20))
     love.graphics.printf(self.title, 0, 10, 800, "center")
     
     -- Draw sort info
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.printf("Total: " .. #self.guns .. " guns | Sort: " .. self.sortBy, 0, 40, 800, "center")
     
     -- Draw guns grid
     if #self.guns == 0 then
-        love.graphics.setFont(love.graphics.newFont(14))
+        love.graphics.setFont(Fonts.get(14))
         love.graphics.setColor(150, 150, 150)
         love.graphics.printf("No guns in vault yet. Go on a mission to collect some!", 0, 300, 800, "center")
     else
@@ -82,13 +85,13 @@ function VaultScene:draw()
     
     -- Draw controls
     love.graphics.setColor(150, 150, 150)
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.printf("Arrow Keys: Navigate | E: Equip | L: Leave", 0, 560, 800, "center")
     
     -- Draw message
     if self.messageTimer > 0 then
         love.graphics.setColor(100, 255, 100)
-        love.graphics.setFont(love.graphics.newFont(12))
+        love.graphics.setFont(Fonts.get(12))
         love.graphics.printf(self.message, 0, 530, 800, "center")
     end
 end
@@ -132,17 +135,17 @@ function VaultScene:drawGunGrid()
         
         -- Draw rarity label
         love.graphics.setColor(50, 50, 50)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf(gun.rarity:upper():sub(1, 3), x, y + 3, cellW, "center")
         
         -- Draw gun name
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(9))
+        love.graphics.setFont(Fonts.get(9))
         love.graphics.printf(gun.name, x + 3, y + 22, cellW - 6, "left")
         
         -- Draw damage indicator
         love.graphics.setColor(200, 100, 100)
-        love.graphics.setFont(love.graphics.newFont(8))
+        love.graphics.setFont(Fonts.get(8))
         love.graphics.printf("DMG: " .. math.floor(gun.damage), x + 3, y + 60, cellW - 6, "left")
         
         -- Draw fire rate indicator
@@ -171,7 +174,7 @@ function VaultScene:drawGunDetails()
     
     -- Draw selected gun details
     love.graphics.setColor(255, 255, 255)
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     
     local textX = detailX + 10
     local textY = detailY + 5
@@ -181,7 +184,7 @@ function VaultScene:drawGunDetails()
     textY = textY + 20
     
     -- Stats grid
-    love.graphics.setFont(love.graphics.newFont(10))
+    love.graphics.setFont(Fonts.get(10))
     
     -- Left column
     love.graphics.setColor(200, 100, 100)
@@ -266,6 +269,7 @@ function VaultScene:equipGun(index)
 
     self.message = "Equipped: " .. gun.name
     self.messageTimer = 2
+    Save.save()
 end
 
 function VaultScene:mousepressed(x, y, button)
