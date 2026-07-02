@@ -1,46 +1,50 @@
 -- HQ Scene - The player's home base
 local Shop = require("utils.shop")
+local Dialogue = require("utils.dialogue")
+local PlayerStats = require("utils.player_stats")
 
 HQScene = {
     player = nil,
     zones = {},
     npcs = {},
-    -- Shop state
     shopOpen = false,
-    shopMode = nil,  -- "main", "guns", or "upgrades"
+    shopMode = nil,
     shopItems = {},
     shopSelection = 1,
     shopMessage = "",
-    shopMessageTimer = 0
+    shopMessageTimer = 0,
+    barOpen = false,
+    barSelection = 1,
+    barQuote = "",
+    barMessage = "",
+    barMessageTimer = 0
 }
 
 function HQScene:load()
-    -- Create player
+    Game.world = bump.newWorld(64)
+
+    local maxHealth = PlayerStats.getMaxHealth(100)
+    local currentHealth = Game.player and Game.player.health or maxHealth
+
     self.player = {
         x = 400,
         y = 300,
         w = 32,
         h = 32,
         speed = 200,
-        health = 100,
-        maxHealth = 100,
+        health = math.min(currentHealth, maxHealth),
+        maxHealth = maxHealth,
         angle = 0,
-        weapon = nil,
+        weapon = Game.equippedWeapon,
         grenades = 3,
         xp = 0,
         level = 1
     }
     Game.world:add(self.player, self.player.x, self.player.y, self.player.w, self.player.h)
 
-    -- Initialize currency if not set
-    if not Game.currency then
-        Game.currency = 0
-    end
-    
-    -- Initialize collected guns if not set
-    if not Game.collectedGuns then
-        Game.collectedGuns = {}
-    end
+    Game.currency = Game.currency or 0
+    Game.collectedGuns = Game.collectedGuns or {}
+    Game.playerUpgrades = Game.playerUpgrades or {}
 
     -- Define interactive zones
     self.zones = {
@@ -56,19 +60,42 @@ function HQScene:load()
         shopkeeper = {x = 150, y = 170, w = 25, h = 35, name = "Shopkeeper", dialog = "Welcome to my store! Looking for some gear?"}
     }
 
-    -- Reset shop state
     self.shopOpen = false
     self.shopMode = nil
     self.shopItems = {}
     self.shopSelection = 1
     self.shopMessage = ""
     self.shopMessageTimer = 0
+    self.barOpen = false
+    self.barSelection = 1
+    self.barQuote = ""
+    self.barMessage = ""
+    self.barMessageTimer = 0
+end
+
+function HQScene:getShopMenuItems()
+    if self.shopMode == "main" then
+        return {
+            {name = "Buy Gun", type = "action", action = "guns"},
+            {name = "Buy Upgrade", type = "action", action = "upgrades"},
+            {name = "Leave Store", type = "action", action = "leave"}
+        }
+    end
+
+    return self.shopItems
+end
+
+function HQScene:getShopItemCount()
+    return #self:getShopMenuItems()
 end
 
 function HQScene:update(dt)
-    -- Update shop message timer
     if self.shopMessageTimer > 0 then
         self.shopMessageTimer = self.shopMessageTimer - dt
+    end
+
+    if self.barMessageTimer > 0 then
+        self.barMessageTimer = self.barMessageTimer - dt
     end
 
     -- Player movement
@@ -173,6 +200,8 @@ function HQScene:draw()
     -- Draw shop UI if open
     if self.shopOpen then
         self:drawShop()
+    elseif self.barOpen then
+        self:drawBar()
     else
         -- Draw interaction hint
         love.graphics.setColor(200, 200, 200)
@@ -227,17 +256,7 @@ function HQScene:drawShop()
 
     -- Draw menu items or shop items
     local itemY = cfg.y + cfg.padding + 55
-    local itemsToShow = {}
-
-    if self.shopMode == "main" then
-        itemsToShow = {
-            {name = "Buy Gun", type = "action", action = "guns"},
-            {name = "Buy Upgrade", type = "action", action = "upgrades"},
-            {name = "Leave Store", type = "action", action = "leave"}
-        }
-    else
-        itemsToShow = self.shopItems
-    end
+    local itemsToShow = self:getShopMenuItems()
 
     -- Draw items
     for i, item in ipairs(itemsToShow) do
@@ -299,6 +318,100 @@ function HQScene:drawShop()
     love.graphics.printf("↑↓ Navigate | ENTER Buy | ESC Close", cfg.x, cfg.y + cfg.height - 12, cfg.width, "center")
 end
 
+function HQScene:drawBar()
+    local cfg = Dialogue.getBoxConfig()
+    local menuItems = Dialogue.getDrinkMenu()
+
+    love.graphics.setColor(0, 0, 0, 180)
+    love.graphics.rectangle("fill", 0, 0, 800, 600)
+
+    love.graphics.setColor(35, 25, 20)
+    love.graphics.rectangle("fill", cfg.x, cfg.y, cfg.width, cfg.height)
+
+    love.graphics.setColor(180, 120, 80)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", cfg.x, cfg.y, cfg.width, cfg.height)
+
+    love.graphics.setColor(255, 220, 180)
+    love.graphics.setFont(love.graphics.newFont(18))
+    love.graphics.printf("JOE'S BAR", cfg.x, cfg.y + cfg.padding, cfg.width, "center")
+
+    love.graphics.setColor(220, 220, 220)
+    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.printf(self.barQuote, cfg.x + cfg.padding, cfg.y + 45, cfg.width - cfg.padding * 2, "left")
+
+    local itemY = cfg.y + 95
+    for i, item in ipairs(menuItems) do
+        local btnY = itemY + (i - 1) * (cfg.buttonHeight + cfg.buttonGap)
+        local btnX = cfg.x + cfg.padding
+        local btnW = cfg.width - cfg.padding * 2
+
+        if i == self.barSelection then
+            love.graphics.setColor(90, 60, 40)
+            love.graphics.rectangle("fill", btnX, btnY, btnW, cfg.buttonHeight)
+        else
+            love.graphics.setColor(55, 40, 30)
+            love.graphics.rectangle("fill", btnX, btnY, btnW, cfg.buttonHeight)
+        end
+
+        love.graphics.setColor(120, 90, 60)
+        love.graphics.rectangle("line", btnX, btnY, btnW, cfg.buttonHeight)
+
+        love.graphics.setColor(255, 255, 255)
+        love.graphics.setFont(love.graphics.newFont(11))
+        love.graphics.printf(item.name, btnX + 10, btnY + 8, btnW - 20, "left")
+    end
+
+    love.graphics.setColor(180, 180, 180)
+    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.printf("HP: " .. math.floor(self.player.health) .. "/" .. self.player.maxHealth, cfg.x, cfg.y + cfg.height - 28, cfg.width, "center")
+
+    if self.barMessageTimer > 0 then
+        love.graphics.setColor(120, 255, 120)
+        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.printf(self.barMessage, cfg.x, cfg.y + cfg.height - 42, cfg.width, "center")
+    end
+
+    love.graphics.setColor(180, 180, 180)
+    love.graphics.printf("↑↓ Navigate | ENTER Select | ESC Close", cfg.x, cfg.y + cfg.height - 12, cfg.width, "center")
+end
+
+function HQScene:openBar()
+    self.barOpen = true
+    self.barSelection = 1
+    self.barQuote = Dialogue.getRandomQuote()
+    self.barMessage = ""
+end
+
+function HQScene:closeBar()
+    self.barOpen = false
+    self.barSelection = 1
+    self.barMessage = ""
+end
+
+function HQScene:selectBarItem()
+    local item = Dialogue.getDrinkMenu()[self.barSelection]
+    if not item then
+        return
+    end
+
+    if item.name == "Leave" then
+        self:closeBar()
+    elseif item.name == "Just Chatting" then
+        self.barQuote = Dialogue.getRandomQuote()
+        self.barMessage = "Joe shares a story."
+        self.barMessageTimer = 2
+    else
+        local restored = item.hpRestore or 0
+        self.player.health = math.min(self.player.maxHealth, self.player.health + restored)
+        Game.player = Game.player or {}
+        Game.player.health = self.player.health
+        Game.player.maxHealth = self.player.maxHealth
+        self.barMessage = item.name .. " restored " .. restored .. " HP!"
+        self.barMessageTimer = 2
+    end
+end
+
 function HQScene:openStore()
     self.shopOpen = true
     self.shopMode = "main"
@@ -331,7 +444,8 @@ function HQScene:buySelectedItem()
         local gun = self.shopItems[self.shopSelection]
         if Game.currency >= gun.price then
             Game.currency = Game.currency - gun.price
-            table.insert(Game.collectedGuns, gun)
+            local purchasedGun = PlayerStats.normalizeWeapon(table.copy(gun))
+            table.insert(Game.collectedGuns, purchasedGun)
             self.shopMessage = "Bought " .. gun.name .. "!"
             self.shopMessageTimer = 2
         else
@@ -370,11 +484,42 @@ function HQScene:applyUpgrade(upgrade)
     table.insert(Game.playerUpgrades, upgrade)
 end
 
+function HQScene:applyUpgrade(upgrade)
+    Game.playerUpgrades = Game.playerUpgrades or {}
+    table.insert(Game.playerUpgrades, upgrade)
+
+    if upgrade.type == "health" then
+        self.player.maxHealth = PlayerStats.getMaxHealth(100)
+        self.player.health = math.min(self.player.health + upgrade.value, self.player.maxHealth)
+        Game.player = Game.player or {}
+        Game.player.maxHealth = self.player.maxHealth
+        Game.player.health = self.player.health
+    end
+end
+
 function HQScene:keypressed(key)
-    -- Handle shop navigation
+    if self.barOpen then
+        local menuCount = #Dialogue.getDrinkMenu()
+
+        if key == "down" or key == "j" then
+            if self.barSelection < menuCount then
+                self.barSelection = self.barSelection + 1
+            end
+        elseif key == "up" or key == "k" then
+            if self.barSelection > 1 then
+                self.barSelection = self.barSelection - 1
+            end
+        elseif key == "return" or key == "space" then
+            self:selectBarItem()
+        elseif key == "escape" or key == "q" then
+            self:closeBar()
+        end
+        return
+    end
+
     if self.shopOpen then
         if key == "down" or key == "j" then
-            if self.shopSelection < #self.shopItems then
+            if self.shopSelection < self:getShopItemCount() then
                 self.shopSelection = self.shopSelection + 1
             end
         elseif key == "up" or key == "k" then
@@ -394,7 +539,11 @@ function HQScene:keypressed(key)
         return
     end
 
-    -- Normal interaction
+    if key == "escape" then
+        love.event.quit()
+        return
+    end
+
     if key == "e" then
         local px, py = self.player.x + self.player.w/2, self.player.y + self.player.h/2
 
@@ -407,7 +556,7 @@ function HQScene:keypressed(key)
                 elseif name == "store" then
                     self:openStore()
                 elseif name == "bar" then
-                    print("Joe says: " .. self.npcs.joe.dialog)
+                    self:openBar()
                 elseif name == "vault" then
                     SceneManager.switch(VaultScene)
                 end
@@ -417,7 +566,7 @@ function HQScene:keypressed(key)
 end
 
 function HQScene:mousepressed(x, y, button)
-    if self.shopOpen then
+    if self.shopOpen or self.barOpen then
         return
     end
 

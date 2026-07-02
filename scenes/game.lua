@@ -1,4 +1,6 @@
 -- Game Scene - The main gameplay loop (waves, combat, loot)
+local PlayerStats = require("utils.player_stats")
+
 GameScene = {
     player = nil,
     enemies = {},
@@ -8,7 +10,8 @@ GameScene = {
     enemiesRemaining = 0,
     waveTimer = 0,
     bossSpawned = false,
-    grenades = {}
+    grenades = {},
+    dead = false
 }
 
 -- Gun generator
@@ -23,33 +26,43 @@ local gunNames = {
 local elementNames = {"", "Frost", "Shock", "Corrosive", "Incendiary", "Explosive"}
 
 function GameScene:load()
-    -- Reset game state
+    Game.world = bump.newWorld(64)
+
     self.wave = Game.wave
     self.enemies = {}
     self.projectiles = {}
     self.lootDrops = {}
     self.grenades = {}
     self.bossSpawned = false
+    self.dead = false
 
-    -- Create player (same as HQ but positioned for game)
+    local maxHealth = PlayerStats.getMaxHealth(100)
+    local startingHealth = Game.player and Game.player.health or maxHealth
+
     self.player = {
         x = 400,
         y = 300,
         w = 32,
         h = 32,
         speed = 200,
-        health = Game.player and Game.player.health or 100,
-        maxHealth = 100,
+        health = math.min(startingHealth, maxHealth),
+        maxHealth = maxHealth,
         angle = 0,
-        weapon = self:generateStartingGun(),
+        weapon = nil,
         grenades = 3,
         xp = 0,
         level = 1,
-        nextLevelXp = 100
+        nextLevelXp = 100,
+        shootCooldown = 0
     }
-    Game.world:add(self.player, self.player.x, self.player.y, self.player.w, self.player.h)
 
-    -- Start first wave
+    if Game.equippedWeapon then
+        self.player.weapon = PlayerStats.applyWeaponModifiers(Game.equippedWeapon)
+    else
+        self.player.weapon = PlayerStats.applyWeaponModifiers(self:generateStartingGun())
+    end
+
+    Game.world:add(self.player, self.player.x, self.player.y, self.player.w, self.player.h)
     self:startWave()
 end
 
@@ -177,23 +190,46 @@ function GameScene:generateBossModifiers()
     return mods
 end
 
+function GameScene:enemyHasModifier(enemy, modifierName)
+    if not enemy.modifiers then
+        return false
+    end
+
+    for _, mod in ipairs(enemy.modifiers) do
+        if mod.name == modifierName then
+            return true
+        end
+    end
+
+    return false
+end
+
+function GameScene:getEnemySpeed(enemy)
+    local speed = enemy.speed
+    if self:enemyHasModifier(enemy, "Speed Boost") then
+        speed = speed * 1.5
+    end
+    return speed
+end
+
+function GameScene:getEnemyDamageTaken(enemy, damage)
+    if self:enemyHasModifier(enemy, "Armor") then
+        return damage * 0.5
+    end
+    return damage
+end
+
 function GameScene:update(dt)
-    -- Update player
+    if self.dead then
+        return
+    end
+
     self:updatePlayer(dt)
-
-    -- Update enemies
     self:updateEnemies(dt)
-
-    -- Update projectiles
     self:updateProjectiles(dt)
-
-    -- Update loot drops
     self:updateLootDrops(dt)
-
-    -- Update grenades
     self:updateGrenades(dt)
 
-    -- Check wave completion
     if #self.enemies == 0 then
         self.wave = self.wave + 1
         Game.wave = self.wave
@@ -201,10 +237,9 @@ function GameScene:update(dt)
         self:startWave()
     end
 
-    -- Check player death
     if self.player.health <= 0 then
-        print("You died! Returning to HQ...")
-        self:returnToHQ()
+        self.dead = true
+        print("You died! Press R to return to HQ.")
     end
 end
 
@@ -236,9 +271,8 @@ function GameScene:updatePlayer(dt)
         love.mouse.getY()
     )
 
-    -- Reload
-    if love.keyboard.isDown("r") then
-        self.player.weapon.ammo = self.player.weapon.magSize
+    if self.player.shootCooldown > 0 then
+        self.player.shootCooldown = self.player.shootCooldown - dt
     end
 end
 
@@ -252,7 +286,7 @@ function GameScene:updateEnemies(dt)
         local angle = math.angle(ex, ey, px, py)
 
         if enemy.type == "melee" or enemy.type == "boss" then
-            local speed = enemy.speed * dt
+            local speed = self:getEnemySpeed(enemy) * dt
             local newX = enemy.x + math.cos(angle) * speed
             local newY = enemy.y + math.sin(angle) * speed
 
@@ -288,14 +322,20 @@ function GameScene:updateEnemies(dt)
             else
                 local dist = math.sqrt((px - ex)^2 + (py - ey)^2)
                 if dist > 100 and dist < 400 then
-                    -- Fire projectile
+                    local projColor = Colors.enemyRanged
+                    local projDamage = enemy.damage
+                    if self:enemyHasModifier(enemy, "Flame Bullets") then
+                        projColor = {255, 100, 50}
+                        projDamage = projDamage * 1.5
+                    end
+
                     local proj = {
                         x = ex,
                         y = ey,
                         vx = math.cos(angle) * 200,
                         vy = math.sin(angle) * 200,
-                        damage = enemy.damage,
-                        color = Colors.enemyRanged,
+                        damage = projDamage,
+                        color = projColor,
                         isEnemy = true
                     }
                     table.insert(self.projectiles, proj)
@@ -308,13 +348,17 @@ function GameScene:updateEnemies(dt)
                     enemy.x, enemy.y = newX, newY
                 else
                     -- Move closer
-                    local speed = enemy.speed * dt
+                    local speed = self:getEnemySpeed(enemy) * dt
                     local newX = enemy.x + math.cos(angle) * speed
                     local newY = enemy.y + math.sin(angle) * speed
                     Game.world:update(enemy, newX, newY, enemy.w, enemy.h)
                     enemy.x, enemy.y = newX, newY
                 end
             end
+        end
+
+        if self:enemyHasModifier(enemy, "Regeneration") and enemy.health < enemy.maxHealth then
+            enemy.health = math.min(enemy.maxHealth, enemy.health + 8 * dt)
         end
     end
 end
@@ -342,7 +386,7 @@ function GameScene:updateProjectiles(dt)
                 local enemy = self.enemies[j]
                 if proj.x > enemy.x and proj.x < enemy.x + enemy.w and
                    proj.y > enemy.y and proj.y < enemy.y + enemy.h then
-                    enemy.health = enemy.health - proj.damage
+                    enemy.health = enemy.health - self:getEnemyDamageTaken(enemy, proj.damage)
                     table.remove(self.projectiles, i)
 
                     if enemy.health <= 0 then
@@ -432,7 +476,7 @@ function GameScene:updateLootDrops(dt)
 
             -- Equip if better than current
             if not self.player.weapon or drop.gun.damage > self.player.weapon.damage then
-                self.player.weapon = drop.gun
+                self.player.weapon = PlayerStats.applyWeaponModifiers(drop.gun)
                 print("Equipped: " .. drop.gun.name)
             end
 
@@ -441,19 +485,6 @@ function GameScene:updateLootDrops(dt)
     end
 end
 
-function GameScene:throwGrenade()
-    if self.player.grenades <= 0 then return end
-
-    self.player.grenades = self.player.grenades - 1
-
-    local mx, my = love.mouse.getPosition()
-    local px, py = self.player.x + self.player.w/2, self.player.y + self.player.h/2
-    local angle = math.angle(px, py, mx, my)
-
-    local grenade = {
-        x = px,
-        y = py,
-        vx = math.cos(angle) *
 function GameScene:throwGrenade()
     if self.player.grenades <= 0 then return end
 
@@ -475,6 +506,39 @@ function GameScene:throwGrenade()
     table.insert(self.grenades, grenade)
 end
 
+function GameScene:reloadWeapon()
+    if self.player.weapon then
+        self.player.weapon.ammo = self.player.weapon.magSize
+    end
+end
+
+function GameScene:shoot()
+    if self.dead or not self.player.weapon or self.player.weapon.ammo <= 0 then
+        return
+    end
+
+    if self.player.shootCooldown > 0 then
+        return
+    end
+
+    self.player.weapon.ammo = self.player.weapon.ammo - 1
+    self.player.shootCooldown = self.player.weapon.fireRate
+
+    local cx, cy = self.player.x + self.player.w/2, self.player.y + self.player.h/2
+    local angle = self.player.angle + (math.random() - 0.5) * self.player.weapon.spread
+
+    local proj = {
+        x = cx,
+        y = cy,
+        vx = math.cos(angle) * 500,
+        vy = math.sin(angle) * 500,
+        damage = self.player.weapon.damage,
+        color = {255, 255, 100},
+        isEnemy = false
+    }
+    table.insert(self.projectiles, proj)
+end
+
 function GameScene:updateGrenades(dt)
     for i = #self.grenades, 1, -1 do
         local grenade = self.grenades[i]
@@ -489,7 +553,7 @@ function GameScene:updateGrenades(dt)
                 local enemy = self.enemies[j]
                 local dist = math.sqrt((grenade.x - (enemy.x + enemy.w/2))^2 + (grenade.y - (enemy.y + enemy.h/2))^2)
                 if dist < grenade.radius then
-                    enemy.health = enemy.health - grenade.damage
+                    enemy.health = enemy.health - self:getEnemyDamageTaken(enemy, grenade.damage)
                     if enemy.health <= 0 then
                         self:enemyKilled(enemy, j)
                     end
@@ -598,63 +662,70 @@ function GameScene:draw()
     end
 
     -- Grenades
-    love.graphics.print("Grenades: " .. self.player.grenades, 10, 180)
+    love.graphics.print("Grenades: " .. self.player.grenades .. " (G)", 10, 180)
+    love.graphics.print("R: Reload", 10, 200)
 
     -- XP bar
     love.graphics.setColor(100, 0, 100)
-    love.graphics.rectangle("fill", 10, 205, 200, 10)
+    love.graphics.rectangle("fill", 10, 225, 200, 10)
     love.graphics.setColor(200, 50, 200)
-    love.graphics.rectangle("fill", 10, 205, 200 * (self.player.xp / self.player.nextLevelXp), 10)
+    love.graphics.rectangle("fill", 10, 225, 200 * (self.player.xp / self.player.nextLevelXp), 10)
     love.graphics.setColor(255, 255, 255)
     love.graphics.setFont(love.graphics.newFont(10))
-    love.graphics.print("Level " .. self.player.xp, 10, 206)
+    love.graphics.print("Level " .. self.player.level .. "  XP: " .. math.floor(self.player.xp) .. "/" .. self.player.nextLevelXp, 10, 226)
+
+    if self.dead then
+        love.graphics.setColor(0, 0, 0, 180)
+        love.graphics.rectangle("fill", 0, 0, 800, 600)
+
+        love.graphics.setColor(255, 80, 80)
+        love.graphics.setFont(love.graphics.newFont(28))
+        love.graphics.printf("YOU DIED", 0, 220, 800, "center")
+
+        love.graphics.setColor(255, 255, 255)
+        love.graphics.setFont(love.graphics.newFont(14))
+        love.graphics.printf("Wave reached: " .. self.wave, 0, 270, 800, "center")
+        love.graphics.printf("Loot collected: " .. #Game.collectedGuns, 0, 295, 800, "center")
+        love.graphics.printf("Press R to return to HQ", 0, 340, 800, "center")
+    end
 end
 
 function GameScene:keypressed(key)
-    if key == "r" then
-        self:throwGrenade()
+    if self.dead then
+        if key == "r" then
+            self:returnToHQ(true)
+        end
+        return
     end
 
-    -- Return to HQ with Escape
-    if key == "escape" then
-        self:returnToHQ()
+    if key == "r" then
+        self:reloadWeapon()
+    elseif key == "g" then
+        self:throwGrenade()
+    elseif key == "escape" then
+        self:returnToHQ(false)
     end
 end
 
 function GameScene:mousepressed(x, y, button)
     if button == 1 then
-        -- Shoot
-        if self.player.weapon and self.player.weapon.ammo > 0 then
-            self.player.weapon.ammo = self.player.weapon.ammo - 1
-
-            local cx, cy = self.player.x + self.player.w/2, self.player.y + self.player.h/2
-            local angle = self.player.angle + (math.random() - 0.5) * self.player.weapon.spread
-
-            local proj = {
-                x = cx,
-                y = cy,
-                vx = math.cos(angle) * 500,
-                vy = math.sin(angle) * 500,
-                damage = self.player.weapon.damage,
-                color = {255, 255, 100},
-                isEnemy = false
-            }
-            table.insert(self.projectiles, proj)
-        end
+        self:shoot()
     end
 end
 
-function GameScene:returnToHQ()
-    -- Save player stats
+function GameScene:returnToHQ(wasDeath)
+    if wasDeath then
+        Game.wave = 1
+    end
+
     Game.player = {
-        health = 100,
-        maxHealth = self.player.maxHealth
+        health = wasDeath and self.player.maxHealth or math.max(1, self.player.health),
+        maxHealth = self.player.maxHealth,
+        weapon = self.player.weapon
     }
+    Game.equippedWeapon = table.copy(self.player.weapon)
 
-    -- Clear world
-    Game.world = bump.newWorld()
-
-    -- Switch back to HQ
+    Game.world = bump.newWorld(64)
     SceneManager.switch(HQScene)
 end
 
