@@ -7,19 +7,22 @@ function love.load()
     love.window.setMode(800, 600)
     
     -- Load libraries
-    local bump = require("lib.bump")
+    bump = require("lib.bump")
     SceneManager = require("lib.scene_manager")
-    require("lib.math_utils")  -- Add math extensions
-    
+    require("lib.math_utils")
+
     -- Load constants
     Colors = require("config.constants")
-    
+
     -- Global game state
     Game = {
         world = bump.newWorld(64),
-        collectedGuns = {},  -- All guns collected across runs
-        player = nil,        -- Current player state
-        wave = 1             -- Current wave
+        collectedGuns = {},
+        player = nil,
+        equippedWeapon = nil,
+        playerUpgrades = {},
+        currency = 0,
+        wave = 1
     }
     
     -- Load scenes (order matters - utils first, then scenes)
@@ -43,11 +46,7 @@ function love.draw()
 end
 
 function love.keypressed(key)
-    if key == "escape" then
-        love.event.quit()
-    else
-        SceneManager.keypressed(key)
-    end
+    SceneManager.keypressed(key)
 end
 
 function love.mousepressed(x, y, button)

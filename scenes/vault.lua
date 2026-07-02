@@ -256,14 +256,14 @@ function VaultScene:equipGun(index)
         self.messageTimer = 1
         return
     end
-    
+
     local gun = self.guns[index]
-    
-    -- Set as current weapon
-    if Game.player then
-        Game.player.weapon = gun
-    end
-    
+    local equipped = table.copy(gun)
+
+    Game.equippedWeapon = equipped
+    Game.player = Game.player or {}
+    Game.player.weapon = equipped
+
     self.message = "Equipped: " .. gun.name
     self.messageTimer = 2
 end
