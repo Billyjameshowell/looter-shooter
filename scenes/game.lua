@@ -1,5 +1,8 @@
 -- Game Scene - The main gameplay loop (waves, combat, loot)
 local PlayerStats = require("utils.player_stats")
+local Save = require("utils.save")
+local Fonts = require("utils.fonts")
+local Particles = require("utils.particles")
 
 GameScene = {
     player = nil,
@@ -11,7 +14,11 @@ GameScene = {
     waveTimer = 0,
     bossSpawned = false,
     grenades = {},
-    dead = false
+    dead = false,
+    waveClearTimer = 0,
+    waveAnnouncement = "",
+    floatingTexts = {},
+    particles = {}
 }
 
 -- Gun generator
@@ -35,6 +42,10 @@ function GameScene:load()
     self.grenades = {}
     self.bossSpawned = false
     self.dead = false
+    self.waveClearTimer = 0
+    self.waveAnnouncement = ""
+    self.floatingTexts = {}
+    self.particles = {}
 
     local maxHealth = PlayerStats.getMaxHealth(100)
     local startingHealth = Game.player and Game.player.health or maxHealth
@@ -219,8 +230,63 @@ function GameScene:getEnemyDamageTaken(enemy, damage)
     return damage
 end
 
+function GameScene:spawnFloatingText(x, y, text, color)
+    table.insert(self.floatingTexts, {
+        x = x,
+        y = y,
+        text = text,
+        life = 0.8,
+        color = color or {255, 255, 120}
+    })
+end
+
+function GameScene:updateFloatingTexts(dt)
+    for index = #self.floatingTexts, 1, -1 do
+        local floater = self.floatingTexts[index]
+        floater.life = floater.life - dt
+        floater.y = floater.y - 30 * dt
+
+        if floater.life <= 0 then
+            table.remove(self.floatingTexts, index)
+        end
+    end
+end
+
+function GameScene:beginWaveClear()
+    Game.bestWave = math.max(Game.bestWave or 1, self.wave)
+    self.waveClearTimer = 2.0
+    self.waveAnnouncement = "WAVE " .. self.wave .. " CLEAR!"
+    Particles.spawnBurst(self.particles, self.player.x + self.player.w/2, self.player.y + self.player.h/2, {
+        count = 20,
+        speed = 90,
+        life = 0.6,
+        radius = 3,
+        color = {120, 220, 255}
+    })
+end
+
+function GameScene:advanceWave()
+    self.wave = self.wave + 1
+    Game.wave = self.wave
+    Game.bestWave = math.max(Game.bestWave or 1, self.wave)
+    print("Wave complete! Starting wave " .. self.wave)
+    self.waveAnnouncement = "WAVE " .. self.wave
+    self:startWave()
+end
+
 function GameScene:update(dt)
     if self.dead then
+        return
+    end
+
+    if self.waveClearTimer > 0 then
+        self.waveClearTimer = self.waveClearTimer - dt
+        self:updateFloatingTexts(dt)
+        Particles.update(self.particles, dt)
+
+        if self.waveClearTimer <= 0 then
+            self:advanceWave()
+        end
         return
     end
 
@@ -229,12 +295,11 @@ function GameScene:update(dt)
     self:updateProjectiles(dt)
     self:updateLootDrops(dt)
     self:updateGrenades(dt)
+    self:updateFloatingTexts(dt)
+    Particles.update(self.particles, dt)
 
-    if #self.enemies == 0 then
-        self.wave = self.wave + 1
-        Game.wave = self.wave
-        print("Wave complete! Starting wave " .. self.wave)
-        self:startWave()
+    if #self.enemies == 0 and self.waveClearTimer <= 0 then
+        self:beginWaveClear()
     end
 
     if self.player.health <= 0 then
@@ -386,7 +451,16 @@ function GameScene:updateProjectiles(dt)
                 local enemy = self.enemies[j]
                 if proj.x > enemy.x and proj.x < enemy.x + enemy.w and
                    proj.y > enemy.y and proj.y < enemy.y + enemy.h then
-                    enemy.health = enemy.health - self:getEnemyDamageTaken(enemy, proj.damage)
+                    local damage = self:getEnemyDamageTaken(enemy, proj.damage)
+                    enemy.health = enemy.health - damage
+                    self:spawnFloatingText(enemy.x + enemy.w/2, enemy.y, "-" .. math.floor(damage), {255, 220, 120})
+                    Particles.spawnBurst(self.particles, proj.x, proj.y, {
+                        count = 4,
+                        speed = 60,
+                        life = 0.25,
+                        radius = 2,
+                        color = {255, 220, 120}
+                    })
                     table.remove(self.projectiles, i)
 
                     if enemy.health <= 0 then
@@ -400,9 +474,16 @@ function GameScene:updateProjectiles(dt)
 end
 
 function GameScene:enemyKilled(enemy, index)
-    -- Remove from world and list
     Game.world:remove(enemy)
     table.remove(self.enemies, index)
+
+    Particles.spawnBurst(self.particles, enemy.x + enemy.w/2, enemy.y + enemy.h/2, {
+        count = enemy.boss and 24 or 10,
+        speed = enemy.boss and 140 or 80,
+        life = 0.45,
+        radius = enemy.boss and 5 or 3,
+        color = enemy.boss and Colors.boss or Colors.enemyMelee
+    })
 
     -- Drop loot
     local lootChance = 0.3 + (enemy.type == "boss" and 0.7 or 0)
@@ -470,9 +551,17 @@ function GameScene:updateLootDrops(dt)
         )
 
         if dist < 50 then
-            -- Pick up
             table.insert(Game.collectedGuns, drop.gun)
             print("Acquired: " .. drop.gun.name .. " (" .. drop.gun.rarity .. ")")
+
+            Particles.spawnBurst(self.particles, drop.x, drop.y, {
+                count = 8,
+                speed = 50,
+                life = 0.35,
+                radius = 2,
+                color = drop.gun.color
+            })
+            self:spawnFloatingText(drop.x, drop.y - 10, drop.gun.name, drop.gun.color)
 
             -- Equip if better than current
             if not self.player.weapon or drop.gun.damage > self.player.weapon.damage then
@@ -513,11 +602,15 @@ function GameScene:reloadWeapon()
 end
 
 function GameScene:shoot()
-    if self.dead or not self.player.weapon or self.player.weapon.ammo <= 0 then
+    if self.dead or self.waveClearTimer > 0 then
         return
     end
 
     if self.player.shootCooldown > 0 then
+        return
+    end
+
+    if not self.player.weapon or self.player.weapon.ammo <= 0 then
         return
     end
 
@@ -548,7 +641,14 @@ function GameScene:updateGrenades(dt)
         grenade.vx = grenade.vx * 0.9
 
         if grenade.timer <= 0 then
-            -- Explode
+            Particles.spawnBurst(self.particles, grenade.x, grenade.y, {
+                count = 18,
+                speed = 160,
+                life = 0.5,
+                radius = 4,
+                color = {255, 140, 60}
+            })
+
             for j = #self.enemies, 1, -1 do
                 local enemy = self.enemies[j]
                 local dist = math.sqrt((grenade.x - (enemy.x + enemy.w/2))^2 + (grenade.y - (enemy.y + enemy.h/2))^2)
@@ -584,7 +684,7 @@ function GameScene:draw()
         love.graphics.setColor(drop.gun.color[1], drop.gun.color[2], drop.gun.color[3])
         love.graphics.rectangle("fill", drop.x - 12, bobY - 12, 24, 24)
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf(drop.gun.rarity:sub(1, 1), drop.x - 10, bobY - 8, 20, "center")
     end
 
@@ -604,14 +704,13 @@ function GameScene:draw()
         -- Boss name
         if enemy.boss then
             love.graphics.setColor(255, 255, 255)
-            love.graphics.setFont(love.graphics.newFont(10))
+            love.graphics.setFont(Fonts.get(10))
             love.graphics.printf(enemy.name or "BOSS", enemy.x - 20, enemy.y - 20, enemy.w + 40, "center")
 
-            -- Boss modifiers
             if enemy.modifiers then
                 for i, mod in ipairs(enemy.modifiers) do
                     love.graphics.setColor(mod.color[1], mod.color[2], mod.color[3])
-                    love.graphics.setFont(love.graphics.newFont(8))
+                    love.graphics.setFont(Fonts.get(8))
                     love.graphics.printf(mod.name, enemy.x - 20, enemy.y - 10 + i * 10, enemy.w + 40, "center")
                 end
             end
@@ -639,54 +738,74 @@ function GameScene:draw()
         love.graphics.circle("fill", grenade.x, grenade.y, 8)
     end
 
-    -- Draw HUD
+    Particles.draw(self.particles)
+
+    for _, floater in ipairs(self.floatingTexts) do
+        local alpha = math.max(0.2, floater.life / 0.8)
+        love.graphics.setColor(floater.color[1], floater.color[2], floater.color[3], alpha)
+        love.graphics.setFont(Fonts.get(10))
+        love.graphics.printf(floater.text, floater.x - 30, floater.y, 60, "center")
+    end
+
     love.graphics.setColor(255, 255, 255)
-    love.graphics.setFont(love.graphics.newFont(16))
+    love.graphics.setFont(Fonts.get(16))
     love.graphics.print("Wave: " .. self.wave, 10, 50)
     love.graphics.print("Enemies: " .. #self.enemies, 10, 70)
+    love.graphics.print("Gold: " .. (Game.currency or 0), 10, 90)
 
     -- Health bar
     love.graphics.setColor(100, 0, 0)
-    love.graphics.rectangle("fill", 10, 95, 200, 15)
+    love.graphics.rectangle("fill", 10, 115, 200, 15)
     love.graphics.setColor(0, 200, 0)
-    love.graphics.rectangle("fill", 10, 95, 200 * (self.player.health / self.player.maxHealth), 15)
+    love.graphics.rectangle("fill", 10, 115, 200 * (self.player.health / self.player.maxHealth), 15)
     love.graphics.setColor(255, 255, 255)
-    love.graphics.setFont(love.graphics.newFont(12))
-    love.graphics.print("HP: " .. math.floor(self.player.health) .. "/" .. self.player.maxHealth, 15, 96)
+    love.graphics.setFont(Fonts.get(12))
+    love.graphics.print("HP: " .. math.floor(self.player.health) .. "/" .. self.player.maxHealth, 15, 116)
 
-    -- Weapon info
     if self.player.weapon then
-        love.graphics.print("Weapon: " .. self.player.weapon.name, 10, 120)
-        love.graphics.print("Damage: " .. math.floor(self.player.weapon.damage), 10, 140)
-        love.graphics.print("Ammo: " .. self.player.weapon.ammo .. "/" .. self.player.weapon.magSize, 10, 160)
+        love.graphics.print("Weapon: " .. self.player.weapon.name, 10, 135)
+        love.graphics.print("Damage: " .. math.floor(self.player.weapon.damage), 10, 155)
+        love.graphics.print("Ammo: " .. self.player.weapon.ammo .. "/" .. self.player.weapon.magSize, 10, 175)
     end
 
-    -- Grenades
-    love.graphics.print("Grenades: " .. self.player.grenades .. " (G)", 10, 180)
-    love.graphics.print("R: Reload", 10, 200)
+    love.graphics.print("Grenades: " .. self.player.grenades .. " (G)", 10, 195)
+    love.graphics.print("R: Reload", 10, 215)
 
-    -- XP bar
     love.graphics.setColor(100, 0, 100)
-    love.graphics.rectangle("fill", 10, 225, 200, 10)
+    love.graphics.rectangle("fill", 10, 240, 200, 10)
     love.graphics.setColor(200, 50, 200)
-    love.graphics.rectangle("fill", 10, 225, 200 * (self.player.xp / self.player.nextLevelXp), 10)
+    love.graphics.rectangle("fill", 10, 240, 200 * (self.player.xp / self.player.nextLevelXp), 10)
     love.graphics.setColor(255, 255, 255)
-    love.graphics.setFont(love.graphics.newFont(10))
-    love.graphics.print("Level " .. self.player.level .. "  XP: " .. math.floor(self.player.xp) .. "/" .. self.player.nextLevelXp, 10, 226)
+    love.graphics.setFont(Fonts.get(10))
+    love.graphics.print("Level " .. self.player.level .. "  XP: " .. math.floor(self.player.xp) .. "/" .. self.player.nextLevelXp, 10, 241)
+
+    if self.waveClearTimer > 0 then
+        love.graphics.setColor(0, 0, 0, 120)
+        love.graphics.rectangle("fill", 0, 0, 800, 600)
+
+        love.graphics.setColor(120, 220, 255)
+        love.graphics.setFont(Fonts.get(24))
+        love.graphics.printf(self.waveAnnouncement, 0, 250, 800, "center")
+
+        love.graphics.setColor(220, 220, 220)
+        love.graphics.setFont(Fonts.get(12))
+        love.graphics.printf("Next wave incoming...", 0, 290, 800, "center")
+    end
 
     if self.dead then
         love.graphics.setColor(0, 0, 0, 180)
         love.graphics.rectangle("fill", 0, 0, 800, 600)
 
         love.graphics.setColor(255, 80, 80)
-        love.graphics.setFont(love.graphics.newFont(28))
+        love.graphics.setFont(Fonts.get(28))
         love.graphics.printf("YOU DIED", 0, 220, 800, "center")
 
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(14))
+        love.graphics.setFont(Fonts.get(14))
         love.graphics.printf("Wave reached: " .. self.wave, 0, 270, 800, "center")
-        love.graphics.printf("Loot collected: " .. #Game.collectedGuns, 0, 295, 800, "center")
-        love.graphics.printf("Press R to return to HQ", 0, 340, 800, "center")
+        love.graphics.printf("Best wave: " .. (Game.bestWave or self.wave), 0, 295, 800, "center")
+        love.graphics.printf("Loot collected: " .. #Game.collectedGuns, 0, 320, 800, "center")
+        love.graphics.printf("Press R to return to HQ", 0, 360, 800, "center")
     end
 end
 
@@ -716,6 +835,8 @@ end
 function GameScene:returnToHQ(wasDeath)
     if wasDeath then
         Game.wave = 1
+    else
+        Game.bestWave = math.max(Game.bestWave or 1, self.wave)
     end
 
     Game.player = {
@@ -725,6 +846,7 @@ function GameScene:returnToHQ(wasDeath)
     }
     Game.equippedWeapon = table.copy(self.player.weapon)
 
+    Save.save()
     Game.world = bump.newWorld(64)
     SceneManager.switch(HQScene)
 end

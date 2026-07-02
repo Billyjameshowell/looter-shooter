@@ -2,6 +2,8 @@
 local Shop = require("utils.shop")
 local Dialogue = require("utils.dialogue")
 local PlayerStats = require("utils.player_stats")
+local Save = require("utils.save")
+local Fonts = require("utils.fonts")
 
 HQScene = {
     player = nil,
@@ -89,6 +91,16 @@ function HQScene:getShopItemCount()
     return #self:getShopMenuItems()
 end
 
+function HQScene:hasUpgrade(upgradeType)
+    for _, upgrade in ipairs(Game.playerUpgrades or {}) do
+        if upgrade.type == upgradeType then
+            return true
+        end
+    end
+
+    return false
+end
+
 function HQScene:update(dt)
     if self.shopMessageTimer > 0 then
         self.shopMessageTimer = self.shopMessageTimer - dt
@@ -150,7 +162,7 @@ function HQScene:draw()
         love.graphics.rectangle("fill", zone.x, zone.y, zone.w, zone.h)
 
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(14))
+        love.graphics.setFont(Fonts.get(14))
         love.graphics.printf(zone.label, zone.x, zone.y + zone.h/2 - 7, zone.w, "center")
     end
 
@@ -160,7 +172,7 @@ function HQScene:draw()
         love.graphics.rectangle("fill", npc.x, npc.y, npc.w, npc.h)
 
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(12))
+        love.graphics.setFont(Fonts.get(12))
         love.graphics.printf(npc.name, npc.x - 20, npc.y - 15, 70, "center")
     end
 
@@ -179,21 +191,25 @@ function HQScene:draw()
 
     -- Draw HQ UI
     love.graphics.setColor(255, 255, 255)
-    love.graphics.setFont(love.graphics.newFont(16))
+    love.graphics.setFont(Fonts.get(16))
     love.graphics.print("💀 HQ - Safe Zone", 10, 50)
 
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.print("Currency: " .. Game.currency, 10, 75)
     love.graphics.print("Loot Collected: " .. #Game.collectedGuns, 10, 95)
+    love.graphics.print("Best Wave: " .. (Game.bestWave or 1), 10, 115)
 
-    -- Draw collected guns preview
+    if Game.equippedWeapon then
+        love.graphics.print("Equipped: " .. Game.equippedWeapon.name, 10, 135)
+    end
+
     if #Game.collectedGuns > 0 then
-        love.graphics.print("Recent:", 10, 115)
+        love.graphics.print("Recent:", 10, 155)
         for i = 1, math.min(5, #Game.collectedGuns) do
             local gun = Game.collectedGuns[#Game.collectedGuns - i + 1]
             local rarityColor = Colors[gun.rarity] or Colors.common
             love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3])
-            love.graphics.print("  " .. gun.name, 10, 130 + i * 15)
+            love.graphics.print("  " .. gun.name, 10, 170 + i * 15)
         end
     end
 
@@ -205,7 +221,7 @@ function HQScene:draw()
     else
         -- Draw interaction hint
         love.graphics.setColor(200, 200, 200)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf("Press E near zone to interact", 0, 580, 800, "center")
     end
 end
@@ -237,21 +253,21 @@ function HQScene:drawShop()
     -- Title
     if self.shopMode == "main" then
         love.graphics.setColor(255, 200, 100)
-        love.graphics.setFont(love.graphics.newFont(18))
+        love.graphics.setFont(Fonts.get(18))
         love.graphics.printf("STORE", cfg.x, cfg.y + cfg.padding, cfg.width, "center")
     elseif self.shopMode == "guns" then
         love.graphics.setColor(255, 200, 100)
-        love.graphics.setFont(love.graphics.newFont(18))
+        love.graphics.setFont(Fonts.get(18))
         love.graphics.printf("GUNS FOR SALE", cfg.x, cfg.y + cfg.padding, cfg.width, "center")
     elseif self.shopMode == "upgrades" then
         love.graphics.setColor(255, 200, 100)
-        love.graphics.setFont(love.graphics.newFont(18))
+        love.graphics.setFont(Fonts.get(18))
         love.graphics.printf("UPGRADES", cfg.x, cfg.y + cfg.padding, cfg.width, "center")
     end
 
     -- Display currency
     love.graphics.setColor(200, 200, 100)
-    love.graphics.setFont(love.graphics.newFont(12))
+    love.graphics.setFont(Fonts.get(12))
     love.graphics.printf("Currency: " .. Game.currency, cfg.x, cfg.y + cfg.padding + 25, cfg.width, "center")
 
     -- Draw menu items or shop items
@@ -288,19 +304,23 @@ function HQScene:drawShop()
 
         -- Button text
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(11))
+        love.graphics.setFont(Fonts.get(11))
         love.graphics.printf(item.name, btnX + 15, btnY + 10, 250, "left")
 
         -- Show price (if not main menu)
         if item.price then
             love.graphics.setColor(200, 200, 100)
-            love.graphics.printf("$" .. item.price, btnX + 300, btnY + 10, 250, "left")
+            local priceText = "$" .. item.price
+            if self.shopMode == "upgrades" and item.type and self:hasUpgrade(item.type) then
+                priceText = "OWNED"
+            end
+            love.graphics.printf(priceText, btnX + 300, btnY + 10, 250, "left")
         end
 
         -- Show description
         if item.description then
             love.graphics.setColor(150, 150, 150)
-            love.graphics.setFont(love.graphics.newFont(9))
+            love.graphics.setFont(Fonts.get(9))
             love.graphics.printf(item.description, btnX + 15, btnY + 20, 350, "left")
         end
     end
@@ -308,13 +328,13 @@ function HQScene:drawShop()
     -- Draw feedback message
     if self.shopMessageTimer > 0 then
         love.graphics.setColor(100, 255, 100)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf(self.shopMessage, cfg.x, cfg.y + cfg.height - 30, cfg.width, "center")
     end
 
     -- Draw instructions
     love.graphics.setColor(180, 180, 180)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.printf("↑↓ Navigate | ENTER Buy | ESC Close", cfg.x, cfg.y + cfg.height - 12, cfg.width, "center")
 end
 
@@ -333,11 +353,11 @@ function HQScene:drawBar()
     love.graphics.rectangle("line", cfg.x, cfg.y, cfg.width, cfg.height)
 
     love.graphics.setColor(255, 220, 180)
-    love.graphics.setFont(love.graphics.newFont(18))
+    love.graphics.setFont(Fonts.get(18))
     love.graphics.printf("JOE'S BAR", cfg.x, cfg.y + cfg.padding, cfg.width, "center")
 
     love.graphics.setColor(220, 220, 220)
-    love.graphics.setFont(love.graphics.newFont(11))
+    love.graphics.setFont(Fonts.get(11))
     love.graphics.printf(self.barQuote, cfg.x + cfg.padding, cfg.y + 45, cfg.width - cfg.padding * 2, "left")
 
     local itemY = cfg.y + 95
@@ -358,17 +378,17 @@ function HQScene:drawBar()
         love.graphics.rectangle("line", btnX, btnY, btnW, cfg.buttonHeight)
 
         love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(love.graphics.newFont(11))
+        love.graphics.setFont(Fonts.get(11))
         love.graphics.printf(item.name, btnX + 10, btnY + 8, btnW - 20, "left")
     end
 
     love.graphics.setColor(180, 180, 180)
-    love.graphics.setFont(love.graphics.newFont(9))
+    love.graphics.setFont(Fonts.get(9))
     love.graphics.printf("HP: " .. math.floor(self.player.health) .. "/" .. self.player.maxHealth, cfg.x, cfg.y + cfg.height - 28, cfg.width, "center")
 
     if self.barMessageTimer > 0 then
         love.graphics.setColor(120, 255, 120)
-        love.graphics.setFont(love.graphics.newFont(10))
+        love.graphics.setFont(Fonts.get(10))
         love.graphics.printf(self.barMessage, cfg.x, cfg.y + cfg.height - 42, cfg.width, "center")
     end
 
@@ -409,6 +429,7 @@ function HQScene:selectBarItem()
         Game.player.maxHealth = self.player.maxHealth
         self.barMessage = item.name .. " restored " .. restored .. " HP!"
         self.barMessageTimer = 2
+        Save.save()
     end
 end
 
@@ -448,18 +469,22 @@ function HQScene:buySelectedItem()
             table.insert(Game.collectedGuns, purchasedGun)
             self.shopMessage = "Bought " .. gun.name .. "!"
             self.shopMessageTimer = 2
+            Save.save()
         else
             self.shopMessage = "Not enough currency!"
             self.shopMessageTimer = 2
         end
     elseif self.shopMode == "upgrades" then
         local upgrade = self.shopItems[self.shopSelection]
-        if Game.currency >= upgrade.price then
+        if self:hasUpgrade(upgrade.type) then
+            self.shopMessage = "Upgrade already owned!"
+            self.shopMessageTimer = 2
+        elseif Game.currency >= upgrade.price then
             Game.currency = Game.currency - upgrade.price
-            -- Apply upgrade effect
             self:applyUpgrade(upgrade)
             self.shopMessage = "Bought " .. upgrade.name .. "!"
             self.shopMessageTimer = 2
+            Save.save()
         else
             self.shopMessage = "Not enough currency!"
             self.shopMessageTimer = 2
