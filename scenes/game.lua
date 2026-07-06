@@ -108,9 +108,9 @@ function GameScene:generateRandomGun()
     -- Generate stats based on rarity
     local baseDamage = 10 + (rarity == "common" and 0 or rarity == "rare" and 15 or rarity == "epic" and 35 or rarity == "legendary" and 70 or 150)
     local damage = baseDamage + math.random(0, 15) + (self.wave * 2)
-    local fireRate = {common = 0.4, rare = 0.3, epic = 0.2, legendary = 0.15, grail = 0.1}[rarity]
-    local magSize = {common = 12, rare = 20, epic = 30, legendary = 50, grail = 100}[rarity] + math.random(0, 10)
-    local spread = {common = 0.15, rare = 0.1, epic = 0.08, legendary = 0.05, grail = 0.02}[rarity]
+    local fireRate = ({common = 0.4, rare = 0.3, epic = 0.2, legendary = 0.15, grail = 0.1})[rarity]
+    local magSize = ({common = 12, rare = 20, epic = 30, legendary = 50, grail = 100})[rarity] + math.random(0, 10)
+    local spread = ({common = 0.15, rare = 0.1, epic = 0.08, legendary = 0.05, grail = 0.02})[rarity]
 
     -- Pick a name
     local gunType = table.random(gunNames[rarity] or gunNames.common)
