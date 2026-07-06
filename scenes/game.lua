@@ -3,6 +3,7 @@ local PlayerStats = require("utils.player_stats")
 local Save = require("utils.save")
 local Fonts = require("utils.fonts")
 local Particles = require("utils.particles")
+local Sprites = require("utils.sprites")
 
 GameScene = {
     player = nil,
@@ -14,6 +15,7 @@ GameScene = {
     waveTimer = 0,
     bossSpawned = false,
     grenades = {},
+    explosions = {},
     dead = false,
     waveClearTimer = 0,
     waveAnnouncement = "",
@@ -40,6 +42,7 @@ function GameScene:load()
     self.projectiles = {}
     self.lootDrops = {}
     self.grenades = {}
+    self.explosions = {}
     self.bossSpawned = false
     self.dead = false
     self.waveClearTimer = 0
@@ -295,6 +298,7 @@ function GameScene:update(dt)
     self:updateProjectiles(dt)
     self:updateLootDrops(dt)
     self:updateGrenades(dt)
+    self:updateExplosions(dt)
     self:updateFloatingTexts(dt)
     Particles.update(self.particles, dt)
 
@@ -632,6 +636,16 @@ function GameScene:shoot()
     table.insert(self.projectiles, proj)
 end
 
+function GameScene:updateExplosions(dt)
+    for index = #self.explosions, 1, -1 do
+        local explosion = self.explosions[index]
+        explosion.timer = explosion.timer - dt
+        if explosion.timer <= 0 then
+            table.remove(self.explosions, index)
+        end
+    end
+end
+
 function GameScene:updateGrenades(dt)
     for i = #self.grenades, 1, -1 do
         local grenade = self.grenades[i]
@@ -641,6 +655,14 @@ function GameScene:updateGrenades(dt)
         grenade.vx = grenade.vx * 0.9
 
         if grenade.timer <= 0 then
+            table.insert(self.explosions, {
+                x = grenade.x,
+                y = grenade.y,
+                timer = 0.35,
+                duration = 0.35,
+                radius = grenade.radius
+            })
+
             Particles.spawnBurst(self.particles, grenade.x, grenade.y, {
                 count = 18,
                 speed = 160,
@@ -681,20 +703,12 @@ function GameScene:draw()
     -- Draw loot drops
     for _, drop in ipairs(self.lootDrops) do
         local bobY = drop.y + math.sin(drop.bobOffset) * 5
-        love.graphics.setColor(drop.gun.color[1], drop.gun.color[2], drop.gun.color[3])
-        love.graphics.rectangle("fill", drop.x - 12, bobY - 12, 24, 24)
-        love.graphics.setColor(255, 255, 255)
-        love.graphics.setFont(Fonts.get(10))
-        love.graphics.printf(drop.gun.rarity:sub(1, 1), drop.x - 10, bobY - 8, 20, "center")
+        Sprites.drawLootChest(drop.x, drop.y, drop.gun.rarity, bobY)
     end
 
-    -- Draw enemies
     for _, enemy in ipairs(self.enemies) do
-        local color = enemy.boss and Colors.boss or (enemy.type == "melee" and Colors.enemyMelee or Colors.enemyRanged)
-        love.graphics.setColor(color[1], color[2], color[3])
-        love.graphics.rectangle("fill", enemy.x, enemy.y, enemy.w, enemy.h)
+        Sprites.drawEnemy(enemy)
 
-        -- Health bar
         local healthPercent = enemy.health / enemy.maxHealth
         love.graphics.setColor(100, 0, 0)
         love.graphics.rectangle("fill", enemy.x, enemy.y - 8, enemy.w, 5)
@@ -717,25 +731,18 @@ function GameScene:draw()
         end
     end
 
-    -- Draw player
-    love.graphics.setColor(Colors.player[1], Colors.player[2], Colors.player[3])
-    love.graphics.rectangle("fill", self.player.x, self.player.y, self.player.w, self.player.h)
+    Sprites.drawHero(self.player.x, self.player.y, self.player.w, self.player.h, self.player.angle)
 
-    -- Draw player direction
-    love.graphics.setColor(100, 200, 255)
-    local cx, cy = self.player.x + self.player.w/2, self.player.y + self.player.h/2
-    love.graphics.line(cx, cy, cx + math.cos(self.player.angle) * 25, cy + math.sin(self.player.angle) * 25)
-
-    -- Draw projectiles
     for _, proj in ipairs(self.projectiles) do
-        love.graphics.setColor(proj.color[1], proj.color[2], proj.color[3])
-        love.graphics.circle("fill", proj.x, proj.y, 4)
+        Sprites.drawProjectile(proj.x, proj.y)
     end
 
-    -- Draw grenades
     for _, grenade in ipairs(self.grenades) do
-        love.graphics.setColor(255, 150, 50)
-        love.graphics.circle("fill", grenade.x, grenade.y, 8)
+        Sprites.drawGrenade(grenade.x, grenade.y)
+    end
+
+    for _, explosion in ipairs(self.explosions) do
+        Sprites.drawExplosion(explosion.x, explosion.y, explosion.timer, explosion.duration, explosion.radius)
     end
 
     Particles.draw(self.particles)

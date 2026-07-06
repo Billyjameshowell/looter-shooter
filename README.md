@@ -85,7 +85,13 @@ looter-shooter/
 │   ├── particles.lua
 │   ├── player_stats.lua
 │   ├── save.lua
-│   └── shop.lua
+│   ├── shop.lua
+│   └── sprites.lua
+├── assets/sprites/
+│   ├── hero/          # 8-direction bounty hunter
+│   ├── enemies/       # melee, ranged, boss
+│   ├── npcs/          # Joe + arms dealer
+│   └── fx/            # bullets, explosions, chests
 └── scripts/check_lua_syntax.py
 ```
 

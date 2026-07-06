@@ -2,16 +2,19 @@
 -- By Botthew
 
 local Save = require("utils.save")
+local Sprites = require("utils.sprites")
 
 function love.load()
   love.window.setTitle("LooterShooter")
   love.window.setMode(800, 600)
+  love.graphics.setDefaultFilter("nearest", "nearest")
 
   bump = require("lib.bump")
   SceneManager = require("lib.scene_manager")
   require("lib.math_utils")
 
   Colors = require("config.constants")
+  Sprites.load()
 
   Game = {
     world = bump.newWorld(64),
