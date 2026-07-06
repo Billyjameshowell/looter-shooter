@@ -4,6 +4,7 @@ local Dialogue = require("utils.dialogue")
 local PlayerStats = require("utils.player_stats")
 local Save = require("utils.save")
 local Fonts = require("utils.fonts")
+local Sprites = require("utils.sprites")
 
 HQScene = {
     player = nil,
@@ -168,26 +169,15 @@ function HQScene:draw()
 
     -- Draw NPCs
     for name, npc in pairs(self.npcs) do
-        love.graphics.setColor(200, 150, 100)
-        love.graphics.rectangle("fill", npc.x, npc.y, npc.w, npc.h)
+        local spriteName = (name == "joe") and "joe" or "dealer"
+        Sprites.drawNpc(spriteName, npc.x - 20, npc.y - 20, npc.w + 40, npc.h + 40)
 
         love.graphics.setColor(255, 255, 255)
         love.graphics.setFont(Fonts.get(12))
         love.graphics.printf(npc.name, npc.x - 20, npc.y - 15, 70, "center")
     end
 
-    -- Draw player
-    love.graphics.setColor(Colors.player[1], Colors.player[2], Colors.player[3])
-    love.graphics.rectangle("fill", self.player.x, self.player.y, self.player.w, self.player.h)
-
-    -- Draw player direction indicator
-    love.graphics.setColor(100, 200, 255)
-    local cx, cy = self.player.x + self.player.w/2, self.player.y + self.player.h/2
-    love.graphics.line(
-        cx, cy,
-        cx + math.cos(self.player.angle) * 25,
-        cy + math.sin(self.player.angle) * 25
-    )
+    Sprites.drawHero(self.player.x, self.player.y, self.player.w, self.player.h, self.player.angle)
 
     -- Draw HQ UI
     love.graphics.setColor(255, 255, 255)
