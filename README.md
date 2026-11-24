@@ -16,7 +16,22 @@ A Love2D looter-shooter with wave-based combat, procedural loot, an HQ hub, and 
 
 ### Requirements
 
-- Love2D 11.0+ — https://love2d.org
+- Love2D 11.0+ — https://love2d.org (includes Lua; you do not need a separate Lua install to play)
+
+**Ubuntu/Debian:**
+
+```bash
+sudo apt-get update
+sudo apt-get install love
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install love
+```
+
+**Windows:** Download the installer from https://love2d.org
 
 ### Running the Game
 
@@ -85,7 +100,13 @@ looter-shooter/
 │   ├── particles.lua
 │   ├── player_stats.lua
 │   ├── save.lua
-│   └── shop.lua
+│   ├── shop.lua
+│   └── sprites.lua
+├── assets/sprites/
+│   ├── hero/          # 8-direction bounty hunter
+│   ├── enemies/       # melee, ranged, boss
+│   ├── npcs/          # Joe + arms dealer
+│   └── fx/            # bullets, explosions, chests
 └── scripts/check_lua_syntax.py
 ```
 

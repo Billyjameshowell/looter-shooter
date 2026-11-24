@@ -1,6 +1,7 @@
 -- Gun Vault Scene - Browse and equip collected guns
 local Save = require("utils.save")
 local Fonts = require("utils.fonts")
+local Sprites = require("utils.sprites")
 
 VaultScene = {
     player = nil,
@@ -130,8 +131,7 @@ function VaultScene:drawGunGrid()
         
         -- Draw gun color indicator (rarity)
         local rarityColor = Colors[gun.rarity] or Colors.common
-        love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3])
-        love.graphics.rectangle("fill", x + 2, y + 2, cellW - 4, 15)
+        Sprites.drawLootChest(x + cellW / 2, y + 18, gun.rarity, y + 18)
         
         -- Draw rarity label
         love.graphics.setColor(50, 50, 50)
